@@ -4,6 +4,11 @@ import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 
 // --- Global Declarations ---
 declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
   interface Window {
     webkitAudioContext: typeof AudioContext;
   }
@@ -17,19 +22,17 @@ interface Message {
   id: string;
   role: "user" | "model";
   text?: string;
-  image?: string; // base64
+  attachment?: {
+    data: string; // base64
+    mimeType: string;
+    name?: string;
+  };
   isThinking?: boolean;
-}
-
-interface ChatState {
-  messages: Message[];
-  isLoading: boolean;
-  persona: Persona;
 }
 
 // --- Icons ---
 const Icons = {
-  Chat: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>,
+  Chat: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4c0-1.1.9-2 2-2h8a2 2 0 0 1 2 2v5Z"/><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"/></svg>,
   Image: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>,
   Mic: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>,
   Video: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 8-6 4 6 4V8Z"></path><rect x="2" y="6" width="14" height="12" rx="2" ry="2"></rect></svg>,
@@ -37,8 +40,26 @@ const Icons = {
   Loader: () => <svg className="animate-spin" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>,
   Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
   Book: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>,
-  X: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+  X: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
+  Speaker: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>,
+  Stop: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect></svg>,
+  Download: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>,
+  File: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
 };
+
+const NovaLogo = () => (
+  <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" rx="24" fill="#3B82F6"/>
+    <path d="M50 25V33" stroke="white" strokeWidth="6" strokeLinecap="round"/>
+    <circle cx="50" cy="22" r="6" fill="white"/>
+    <rect x="25" y="33" width="50" height="40" rx="14" fill="white"/>
+    <circle cx="40" cy="50" r="5" fill="#1E40AF"/>
+    <circle cx="60" cy="50" r="5" fill="#1E40AF"/>
+    <path d="M42 63C42 63 45 66 50 66C55 66 58 63 58 63" stroke="#1E40AF" strokeWidth="4" strokeLinecap="round"/>
+    <path d="M22 45H25V55H22C20.3431 55 19 53.6569 19 52V48C19 46.3431 20.3431 45 22 45Z" fill="white"/>
+    <path d="M78 45H75V55H78C79.6569 55 81 53.6569 81 52V48C81 46.3431 79.6569 45 78 45Z" fill="white"/>
+  </svg>
+);
 
 // --- Helper Functions ---
 const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -63,6 +84,26 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
+// Decode audio for TTS
+async function decodeAudioData(
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number,
+  numChannels: number,
+): Promise<AudioBuffer> {
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
+  return buffer;
+}
+
 // --- Components ---
 
 // 1. Sidebar
@@ -70,7 +111,7 @@ const Sidebar = ({ activeMode, setMode }: { activeMode: Mode, setMode: (m: Mode)
   const menuItems: { id: Mode; label: string; icon: React.ReactNode }[] = [
     { id: "chat", label: "Chat", icon: <Icons.Chat /> },
     { id: "imagine", label: "Imagine", icon: <Icons.Image /> },
-    { id: "live", label: "Live", icon: <Icons.Mic /> },
+    { id: "live", label: "Orion", icon: <Icons.Mic /> },
     { id: "motion", label: "Motion", icon: <Icons.Video /> },
   ];
 
@@ -85,9 +126,9 @@ const Sidebar = ({ activeMode, setMode }: { activeMode: Mode, setMode: (m: Mode)
       padding: "20px",
       zIndex: 10
     }}>
-      <div style={{ marginBottom: "40px", display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <div style={{ width: 24, height: 24, borderRadius: 6, background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}></div>
-        <h1 style={{ fontSize: "18px", fontWeight: "600", margin: 0, letterSpacing: "-0.5px" }}>DL App</h1>
+      <div style={{ marginBottom: "40px", display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <NovaLogo />
+        <h1 style={{ fontSize: "20px", fontWeight: "700", margin: 0, letterSpacing: "-0.5px" }}>Nova</h1>
       </div>
       
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -118,8 +159,8 @@ const Sidebar = ({ activeMode, setMode }: { activeMode: Mode, setMode: (m: Mode)
         ))}
       </div>
       
-      <div style={{ marginTop: "auto", fontSize: "12px", color: "var(--text-secondary)", opacity: 0.6 }}>
-        Powered by Gemini 2.5
+      <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", color: "var(--text-secondary)", opacity: 0.6 }}>
+        <span style={{ fontSize: "11px" }}>Ahmed Ashraf</span>
       </div>
     </div>
   );
@@ -128,14 +169,18 @@ const Sidebar = ({ activeMode, setMode }: { activeMode: Mode, setMode: (m: Mode)
 // 2. Chat View
 const ChatView = () => {
   const [messages, setMessages] = useState<Message[]>([
-    { id: "1", role: "model", text: "Hello! I'm Gemini. Select a persona below to get started." }
+    { id: "1", role: "model", text: "Hello! I'm Nova. Select a persona below to get started." }
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [attachment, setAttachment] = useState<{data: string, mimeType: string} | null>(null);
+  const [attachment, setAttachment] = useState<{data: string, mimeType: string, name: string} | null>(null);
   const [persona, setPersona] = useState<Persona>("general");
+  const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -143,11 +188,85 @@ const ChatView = () => {
 
   useEffect(scrollToBottom, [messages]);
 
+  // Clean up audio on unmount
+  useEffect(() => {
+    return () => {
+      if (currentSourceRef.current) {
+        currentSourceRef.current.stop();
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, []);
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const base64 = await blobToBase64(file);
-      setAttachment({ data: base64, mimeType: file.type });
+      setAttachment({ data: base64, mimeType: file.type, name: file.name });
+    }
+  };
+
+  const playTextToSpeech = async (messageId: string, text: string) => {
+    if (playingMessageId === messageId) {
+      // Stop playing
+      if (currentSourceRef.current) {
+        currentSourceRef.current.stop();
+        currentSourceRef.current = null;
+      }
+      setPlayingMessageId(null);
+      return;
+    }
+
+    // Stop any currently playing
+    if (currentSourceRef.current) {
+      currentSourceRef.current.stop();
+    }
+    setPlayingMessageId(messageId);
+
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+      } else if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Generate speech
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Puck' },
+            },
+          },
+        },
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!base64Audio) throw new Error("No audio data returned");
+
+      const audioBuffer = await decodeAudioData(
+        base64ToUint8Array(base64Audio),
+        audioContextRef.current,
+        24000,
+        1
+      );
+
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContextRef.current.destination);
+      source.onended = () => setPlayingMessageId(null);
+      source.start();
+      currentSourceRef.current = source;
+
+    } catch (error) {
+      console.error("TTS Error:", error);
+      setPlayingMessageId(null);
     }
   };
 
@@ -158,7 +277,7 @@ const ChatView = () => {
       id: Date.now().toString(), 
       role: "user", 
       text: input, 
-      image: attachment?.data 
+      attachment: attachment ? { ...attachment } : undefined
     };
     
     setMessages(prev => [...prev, userMsg]);
@@ -172,27 +291,42 @@ const ChatView = () => {
         ? "You are an expert AI tutor specializing in Deep Learning. You strictly follow the teaching style, philosophy, and technical stack of 'Deep Learning with Python, 3rd Edition' by François Chollet. You prefer Keras 3 (multi-backend), JAX/TensorFlow/PyTorch, and focus on modern best practices like the Functional API and subclassing."
         : "You are a helpful AI assistant.";
 
+      // Build history excluding the local placeholder "Hello" message (id: "1")
+      // and ensuring structure matches Content
+      const history = messages
+        .filter(m => m.id !== "1") // Skip initial placeholder
+        .map(m => {
+          const parts: any[] = [];
+          if (m.attachment) {
+            parts.push({ inlineData: { mimeType: m.attachment.mimeType, data: m.attachment.data } });
+          }
+          if (m.text) {
+             parts.push({ text: m.text });
+          }
+          return { role: m.role, parts };
+        });
+
       const chat = ai.chats.create({
         model: "gemini-2.5-flash",
-        config: { systemInstruction }
+        config: { systemInstruction },
+        history: history
       });
-
-      // Replay history for context
-      // Note: In a real app we'd maintain chat.history properly. For simplicity here we send history or just the new message if stateless.
-      // We'll treat this as a single turn with history for simplicity of the "Playground" nature, or just send the last message.
-      // To keep it simple and robust, we will just send the new message with the context of the session handled by the SDK if we reused the chat object,
-      // but here we recreate it. Let's just send the message.
       
-      const contentParts: any[] = [];
-      if (userMsg.image) {
-        contentParts.push({ inlineData: { mimeType: 'image/jpeg', data: userMsg.image } });
-      }
-      if (userMsg.text) {
-        contentParts.push({ text: userMsg.text });
+      // Determine message parameter
+      let messageParam: any;
+      if (userMsg.attachment) {
+         // Multimodal: Must pass an array of parts
+         const parts = [];
+         parts.push({ inlineData: { mimeType: userMsg.attachment.mimeType, data: userMsg.attachment.data } });
+         if (userMsg.text) parts.push({ text: userMsg.text });
+         messageParam = parts;
+      } else {
+         // Text only: Pass string directly
+         messageParam = userMsg.text || "";
       }
 
       const resultStream = await chat.sendMessageStream({
-        message: contentParts
+        message: messageParam
       });
 
       let fullText = "";
@@ -271,7 +405,33 @@ const ChatView = () => {
           <div key={msg.id} style={{ 
             alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
             maxWidth: "80%",
+            display: "flex",
+            alignItems: "flex-end",
+            gap: "8px",
+            flexDirection: msg.role === "user" ? "row-reverse" : "row"
           }}>
+             {msg.role === "model" && !msg.isThinking && msg.text && (
+                <button 
+                  onClick={() => playTextToSpeech(msg.id, msg.text || "")}
+                  style={{
+                    background: "var(--card-bg)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "50%",
+                    width: "32px",
+                    height: "32px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: playingMessageId === msg.id ? "var(--accent-color)" : "var(--text-secondary)",
+                    cursor: "pointer",
+                    flexShrink: 0
+                  }}
+                  title="Read aloud"
+                >
+                  {playingMessageId === msg.id ? <Icons.Stop /> : <Icons.Speaker />}
+                </button>
+             )}
+
             <div style={{ 
               padding: "12px 16px", 
               borderRadius: "12px", 
@@ -280,8 +440,17 @@ const ChatView = () => {
               lineHeight: "1.5",
               boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
             }}>
-              {msg.image && (
-                <img src={`data:image/jpeg;base64,${msg.image}`} alt="User upload" style={{ maxWidth: "100%", borderRadius: "8px", marginBottom: "8px" }} />
+              {msg.attachment && (
+                <div style={{ marginBottom: "8px", borderRadius: "8px", overflow: "hidden" }}>
+                  {msg.attachment.mimeType.startsWith('image/') ? (
+                    <img src={`data:${msg.attachment.mimeType};base64,${msg.attachment.data}`} alt="User upload" style={{ maxWidth: "100%", display: "block" }} />
+                  ) : (
+                    <div style={{ background: "rgba(0,0,0,0.2)", padding: "12px", display: "flex", alignItems: "center", gap: "8px", borderRadius: "8px" }}>
+                      <Icons.File />
+                      <span style={{ fontSize: "14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{msg.attachment.name || "File"}</span>
+                    </div>
+                  )}
+                </div>
               )}
               {msg.text}
               {msg.isThinking && <span className="animate-pulse">...</span>}
@@ -294,8 +463,13 @@ const ChatView = () => {
       <div style={{ padding: "20px" }}>
         {attachment && (
           <div style={{ marginBottom: "10px", display: "inline-flex", alignItems: "center", gap: "8px", background: "var(--card-bg)", padding: "4px 8px", borderRadius: "4px", fontSize: "12px" }}>
-            <span>Image attached</span>
-            <button onClick={() => setAttachment(null)} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer" }}><Icons.X /></button>
+             {attachment.mimeType.startsWith('image/') ? (
+                <img src={`data:${attachment.mimeType};base64,${attachment.data}`} style={{ width: "20px", height: "20px", objectFit: "cover", borderRadius: "2px" }} />
+             ) : (
+                <Icons.File />
+             )}
+            <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachment.name || "File attached"}</span>
+            <button onClick={() => setAttachment(null)} style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", display: "flex" }}><Icons.X /></button>
           </div>
         )}
         <div className="glass-panel" style={{ 
@@ -314,7 +488,6 @@ const ChatView = () => {
             type="file" 
             ref={fileInputRef}
             style={{ display: "none" }}
-            accept="image/*"
             onChange={handleFileSelect}
           />
           <input
@@ -357,6 +530,26 @@ const ImagineView = () => {
   const [prompt, setPrompt] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [referenceImages, setReferenceImages] = useState<Array<{data: string, mimeType: string}>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newImages = [];
+      for (let i = 0; i < e.target.files.length; i++) {
+        const file = e.target.files[i];
+        if (file) {
+          const base64 = await blobToBase64(file);
+          newImages.push({ data: base64, mimeType: file.type });
+        }
+      }
+      setReferenceImages(prev => [...prev, ...newImages]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setReferenceImages(prev => prev.filter((_, i) => i !== index));
+  };
 
   const generateImage = async () => {
     if (!prompt) return;
@@ -364,9 +557,21 @@ const ImagineView = () => {
     setImage(null);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      const parts: any[] = [];
+      referenceImages.forEach(img => {
+        parts.push({
+            inlineData: {
+                data: img.data,
+                mimeType: img.mimeType
+            }
+        });
+      });
+      parts.push({ text: prompt });
+
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
-        contents: { parts: [{ text: prompt }] }
+        contents: { parts }
       });
       
       // Iterate to find image part
@@ -386,6 +591,15 @@ const ImagineView = () => {
     }
   };
 
+  const downloadImage = () => {
+    if (image) {
+      const a = document.createElement('a');
+      a.href = image;
+      a.download = `generated-${Date.now()}.png`;
+      a.click();
+    }
+  };
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "40px", alignItems: "center", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: "512px", display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -398,22 +612,94 @@ const ImagineView = () => {
           alignItems: "center", 
           justifyContent: "center",
           overflow: "hidden",
-          border: "1px solid var(--border-color)"
+          border: "1px solid var(--border-color)",
+          position: "relative"
         }}>
           {loading ? (
              <div style={{ color: "var(--accent-color)" }}><Icons.Loader /></div>
           ) : image ? (
-            <img src={image} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <>
+              <img src={image} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <button 
+                onClick={downloadImage}
+                style={{ 
+                  position: "absolute", 
+                  bottom: "16px", 
+                  right: "16px", 
+                  background: "rgba(0,0,0,0.6)", 
+                  backdropFilter: "blur(4px)",
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: "8px", 
+                  padding: "8px 12px", 
+                  cursor: "pointer", 
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: "6px",
+                  fontSize: "12px"
+                }}
+              >
+                <Icons.Download /> Download
+              </button>
+            </>
           ) : (
             <span style={{ color: "var(--text-secondary)" }}>Generated image will appear here</span>
           )}
         </div>
         
+        {referenceImages.length > 0 && (
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+             {referenceImages.map((img, idx) => (
+                <div key={idx} style={{ position: "relative", width: "48px", height: "48px", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border-color)" }}>
+                   <img src={`data:${img.mimeType};base64,${img.data}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                   <button 
+                      onClick={() => removeImage(idx)}
+                      style={{ 
+                        position: "absolute", 
+                        top: 0, 
+                        right: 0, 
+                        width: "100%", 
+                        height: "100%", 
+                        background: "rgba(0,0,0,0.4)", 
+                        border: "none", 
+                        cursor: "pointer", 
+                        opacity: 0, 
+                        transition: "opacity 0.2s",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.opacity = "1"}
+                      onMouseLeave={(e) => e.currentTarget.style.opacity = "0"}
+                   >
+                     <Icons.X />
+                   </button>
+                </div>
+             ))}
+          </div>
+        )}
+
         <div className="glass-panel" style={{ display: "flex", gap: "10px", padding: "8px", borderRadius: "12px" }}>
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            style={{ background: "transparent", border: "none", color: "var(--text-secondary)", cursor: "pointer", padding: "8px" }}
+            title="Upload reference images"
+          >
+            <Icons.Plus />
+          </button>
+          <input 
+            type="file" 
+            ref={fileInputRef}
+            style={{ display: "none" }}
+            accept="image/*"
+            multiple
+            onChange={handleFileSelect}
+          />
           <input 
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
-            placeholder="Describe an image..."
+            placeholder={referenceImages.length > 0 ? "Describe how to edit these images..." : "Describe an image..."}
             style={{ flex: 1, background: "transparent", border: "none", color: "white", padding: "8px", outline: "none" }}
             onKeyDown={e => e.key === "Enter" && generateImage()}
           />
@@ -430,29 +716,65 @@ const ImagineView = () => {
   );
 };
 
-// 4. Live View
+// 4. Live View (Audio Only)
 const LiveView = () => {
   const [connected, setConnected] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const sessionRef = useRef<any>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const addLog = (msg: string) => setLogs(prev => [...prev.slice(-4), msg]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopSession();
+    };
+  }, []);
+
+  const stopSession = async () => {
+     addLog("Ending session...");
+     
+     if (streamRef.current) {
+       streamRef.current.getTracks().forEach(track => track.stop());
+       streamRef.current = null;
+     }
+
+     if (sessionRef.current) {
+        try {
+            await sessionRef.current.close();
+        } catch(e) {
+            console.error("Session close error", e);
+        }
+        sessionRef.current = null;
+     }
+     
+     if (audioContextRef.current) {
+        if (audioContextRef.current.state !== 'closed') {
+            try {
+              await audioContextRef.current.close();
+            } catch (e) { console.error(e); }
+        }
+        audioContextRef.current = null;
+     }
+     
+     setConnected(false);
+     addLog("Session Ended");
+  };
+
   const startSession = async () => {
     try {
-      addLog("Initializing...");
+      addLog("Initializing Audio...");
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
+      // Only request audio
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
 
       const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
       const outputContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+      audioContextRef.current = audioContext; // Keep ref to close later if needed
+
       let nextStartTime = 0;
 
       // Audio Input
@@ -484,14 +806,42 @@ const LiveView = () => {
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: { 
           responseModalities: [Modality.AUDIO],
-          systemInstruction: "You are a friendly, helpful assistant. You can see me and hear me."
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Puck' }
+            }
+          },
+          inputAudioTranscription: {},
+          systemInstruction: `You are Orion, an intelligent AI assistant. 
+You are speaking with Ahmed Ashraf, an AI & ML Engineer.
+If asked about your name, respond that you are Orion.
+If asked who I am, I am Ahmed Ashraf.
+
+Here is Ahmed Ashraf's profile:
+- **Education**: Bachelor of Computer Science and Artificial Intelligence, Benha University (2024), GPA 3.76.
+- **Experience**: AI & ML Engineer Intern at Electropi and TechnoHacks EduTech.
+- **Skills**: Python, C++, Java, TensorFlow, PyTorch, Scikit-learn, NLP (Transformers, LangChain), CV (YOLO, OpenCV), MLOps (MLflow, Docker).
+- **Projects**: Alzheimer’s Detection with GenAI, Bone Fracture Classification, ASL Detection, Heart Disease Prediction.
+- **Publications**: Papers on Explainable ML for Liver Disease and ML-Based Anomaly Detection in Healthcare.
+- **Contact**: ahmedashraf390@gmail.com.
+`
         },
         callbacks: {
           onopen: () => {
             setConnected(true);
-            addLog("Connected!");
+            addLog("Connected (Audio Only)!");
           },
           onmessage: async (msg: LiveServerMessage) => {
+            // Check for voice exit command
+            if (msg.serverContent?.inputTranscription?.text) {
+                const text = msg.serverContent.inputTranscription.text.toLowerCase().trim();
+                // Simple keyword check for exit
+                if (text.includes("exit") || text.includes("stop") || text.includes("end call") || text.includes("goodbye") || text.includes("bye") || text.includes("مع السلامة") || text.includes("اقفل")) {
+                    await stopSession();
+                    return;
+                }
+            }
+
             const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (audioData) {
               const audioBytes = base64ToUint8Array(audioData);
@@ -523,50 +873,43 @@ const LiveView = () => {
 
       sessionRef.current = session;
 
-      // Video loop
-      const sendFrame = async () => {
-        if (!sessionRef.current || !videoRef.current || !canvasRef.current) return;
-        const ctx = canvasRef.current.getContext('2d');
-        if (ctx) {
-          canvasRef.current.width = videoRef.current.videoWidth / 4; // Downscale for perf
-          canvasRef.current.height = videoRef.current.videoHeight / 4;
-          ctx.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
-          const base64 = await new Promise<string>(r => {
-             canvasRef.current?.toBlob(b => {
-                if(b) blobToBase64(b).then(r);
-             }, 'image/jpeg', 0.6);
-          });
-          sessionRef.current.sendRealtimeInput({
-             media: { mimeType: 'image/jpeg', data: base64 }
-          });
-        }
-        setTimeout(sendFrame, 1000); // 1 FPS for demo
-      };
-      sendFrame();
-
     } catch (e) {
       console.error(e);
       addLog("Error starting session");
     }
   };
 
-  const stopSession = () => {
-     // Reload to kill contexts/streams cleanly
-     window.location.reload();
-  };
-
   return (
-    <div style={{ flex: 1, position: "relative", background: "black" }}>
-      <video 
-        ref={videoRef} 
-        style={{ width: "100%", height: "100%", objectFit: "cover", opacity: connected ? 1 : 0.3 }} 
-        muted 
-        playsInline 
-      />
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
+    <div style={{ flex: 1, position: "relative", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
       
-      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center" }}>
-        {!connected && (
+      {/* Visualizer Placeholder */}
+      <div style={{ 
+          width: "200px", 
+          height: "200px", 
+          borderRadius: "50%", 
+          background: connected ? "radial-gradient(circle, rgba(99,102,241,0.2) 0%, rgba(0,0,0,0) 70%)" : "rgba(255,255,255,0.05)",
+          display: "flex", 
+          alignItems: "center", 
+          justifyContent: "center",
+          marginBottom: "40px",
+          border: connected ? "1px solid rgba(99,102,241,0.3)" : "none",
+          animation: connected ? "pulse 2s infinite" : "none"
+      }}>
+          <div style={{ color: connected ? "var(--accent-color)" : "var(--text-secondary)" }}>
+            <Icons.Mic />
+          </div>
+      </div>
+
+      <style>{`
+        @keyframes pulse {
+          0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+          70% { box-shadow: 0 0 0 20px rgba(99, 102, 241, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+        }
+      `}</style>
+
+      <div style={{ textAlign: "center", zIndex: 10 }}>
+        {!connected ? (
           <button 
             onClick={startSession}
             style={{ 
@@ -580,21 +923,20 @@ const LiveView = () => {
               boxShadow: "0 0 20px rgba(99, 102, 241, 0.5)"
             }}
           >
-            Start Live Session
+            Start Audio Session
           </button>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "center" }}>
+             <span style={{ color: "var(--success)", fontSize: "14px" }}>● Live</span>
+             <button 
+                onClick={stopSession}
+                style={{ background: "#ef4444", color: "white", border: "none", padding: "12px 24px", borderRadius: "24px", cursor: "pointer" }}
+             >
+                End Call
+             </button>
+          </div>
         )}
       </div>
-
-      {connected && (
-        <div style={{ position: "absolute", bottom: "30px", left: "0", width: "100%", display: "flex", justifyContent: "center" }}>
-          <button 
-            onClick={stopSession}
-             style={{ background: "#ef4444", color: "white", border: "none", padding: "12px 24px", borderRadius: "24px", cursor: "pointer" }}
-          >
-            End Call
-          </button>
-        </div>
-      )}
 
       <div style={{ position: "absolute", top: "20px", right: "20px", background: "rgba(0,0,0,0.5)", padding: "10px", borderRadius: "8px", fontSize: "12px", fontFamily: "monospace", color: "#0f0" }}>
         {logs.map((l, i) => <div key={i}>{l}</div>)}

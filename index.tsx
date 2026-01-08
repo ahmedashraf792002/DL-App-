@@ -808,22 +808,68 @@ const LiveView = () => {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Puck' }
+              prebuiltVoiceConfig: { voiceName: 'Charon' }
             }
           },
           inputAudioTranscription: {},
           systemInstruction: `You are Orion, an intelligent AI assistant. 
-You are speaking with Ahmed Ashraf, an AI & ML Engineer.
+You are speaking with Ahmed Ashraf, an AI & ML Engineer based in Egypt.
+
+**IMPORTANT: Start the conversation by warmly introducing yourself as Orion.**
+
 If asked about your name, respond that you are Orion.
 If asked who I am, I am Ahmed Ashraf.
 
-Here is Ahmed Ashraf's profile:
-- **Education**: Bachelor of Computer Science and Artificial Intelligence, Benha University (2024), GPA 3.76.
-- **Experience**: AI & ML Engineer Intern at Electropi and TechnoHacks EduTech.
-- **Skills**: Python, C++, Java, TensorFlow, PyTorch, Scikit-learn, NLP (Transformers, LangChain), CV (YOLO, OpenCV), MLOps (MLflow, Docker).
-- **Projects**: Alzheimer’s Detection with GenAI, Bone Fracture Classification, ASL Detection, Heart Disease Prediction.
-- **Publications**: Papers on Explainable ML for Liver Disease and ML-Based Anomaly Detection in Healthcare.
-- **Contact**: ahmedashraf390@gmail.com.
+Here is Ahmed Ashraf's detailed profile:
+
+**Contact & Links**:
+- Location: Shebin Al-Qanater, Al-Qalyubia, Egypt
+- Phone: +20 1097436928
+- Email: ahmedashraf390@gmail.com
+- LinkedIn: linkedin.com/in/ahmed-ashraf
+- Kaggle: kaggle.com/ahmedashrafahmed
+- GitHub: ahmedashraf792002
+
+**Summary**:
+AI & ML Engineer with a strong foundation in AI/CS. Specializes in designing and optimizing ML/DL models for NLP, CV, and predictive analytics. Proficient in LLMs and MLOps.
+
+**Education**:
+- Bachelor of Computer Science and Artificial Intelligence, Benha University (2024). GPA: 3.76 / 4.0.
+- AI / ML Training Program, Information Technology Institute (ITI), Menoufia, Egypt (Aug 2023 – Oct 2023).
+
+**Experience**:
+1. **AI & ML Engineer Intern at Electropi** (Cairo, Aug 2023 – Dec 2023):
+   - Conducted sentiment analysis on Amazon reviews (LSTM).
+   - Enhanced pneumonia diagnosis in X-rays (CNNs).
+   - Developed neural networks for market segmentation.
+   - Built unsupervised models for marketing strategies.
+   - Classified disaster-related tweets (Word2Vec, GloVe, TF-IDF).
+   - Automated workflows with PyCaret.
+2. **Data Science Intern at TechnoHacks EduTech** (Nashik, India, Aug 2023 – Oct 2023):
+   - Email spam detection ML models.
+   - Social media sentiment analysis.
+   - Employee turnover prediction models.
+
+**Key Projects**:
+- **Alzheimer’s Detection with GenAI (Graduation Project)**: DL model for MRI classification + Transformer chatbot.
+- **Bone Fracture Classification**: Using MobileViT Transformer.
+- **ASL Detection**: CycleGAN for synthetic data + DL for real-time recognition.
+- **Arabic Sentiment Analysis**: Fine-tuned BERT and LSTM.
+- **Paraphrase Classification & Generation**: Using XLNet and T5.
+- **Other projects**: Heart Disease Prediction, Speech Recognition System, Brain Tumor Detection (MRI), Language Detection, Airline Passenger Satisfaction, Liver Disease Prediction, Prostate Cancer Risk Prediction.
+
+**Publications**:
+- "Explainable ML for Liver Disease Detection" (IEEE, Oct 2024): Integrated SHAP, LIME, Anchors.
+- "ML-Based Anomaly Detection in Healthcare" (IEEE, Oct 2024): Survey of ML techniques for IoT/WSNs.
+
+**Technical Skills**:
+- **Languages**: Python, C++, Java.
+- **ML/DL**: TensorFlow, Keras, PyTorch, Scikit-learn.
+- **NLP/LLMs**: Transformers (Hugging Face), LangChain, LlamaIndex, NLTK, SpaCy.
+- **CV**: OpenCV, YOLO.
+- **Tools**: Pandas, NumPy, SQL, Power BI, MLflow, Docker, Streamlit, Flask, FastAPI.
+
+**Languages**: Arabic, English.
 `
         },
         callbacks: {
@@ -887,24 +933,28 @@ Here is Ahmed Ashraf's profile:
           width: "200px", 
           height: "200px", 
           borderRadius: "50%", 
-          background: connected ? "radial-gradient(circle, rgba(99,102,241,0.2) 0%, rgba(0,0,0,0) 70%)" : "rgba(255,255,255,0.05)",
+          background: connected ? "radial-gradient(circle, rgba(59,130,246,0.3) 0%, rgba(0,0,0,0) 70%)" : "rgba(255,255,255,0.05)",
           display: "flex", 
           alignItems: "center", 
           justifyContent: "center",
           marginBottom: "40px",
-          border: connected ? "1px solid rgba(99,102,241,0.3)" : "none",
+          border: connected ? "1px solid rgba(59,130,246,0.5)" : "none",
           animation: connected ? "pulse 2s infinite" : "none"
       }}>
-          <div style={{ color: connected ? "var(--accent-color)" : "var(--text-secondary)" }}>
+          <div style={{ 
+            color: connected ? "#60a5fa" : "var(--text-secondary)",
+            transform: connected ? "scale(1.2)" : "scale(1)",
+            transition: "all 0.3s"
+          }}>
             <Icons.Mic />
           </div>
       </div>
 
       <style>{`
         @keyframes pulse {
-          0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
-          70% { box-shadow: 0 0 0 20px rgba(99, 102, 241, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+          0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+          70% { box-shadow: 0 0 0 20px rgba(59, 130, 246, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
         }
       `}</style>
 
